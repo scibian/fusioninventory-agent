@@ -1,6 +1,8 @@
---- a/lib/FusionInventory/Agent/Tools/Generic.pm
-+++ b/lib/FusionInventory/Agent/Tools/Generic.pm
-@@ -268,7 +268,7 @@
+Index: fusioninventory-agent/lib/FusionInventory/Agent/Tools/Generic.pm
+===================================================================
+--- fusioninventory-agent.orig/lib/FusionInventory/Agent/Tools/Generic.pm
++++ fusioninventory-agent/lib/FusionInventory/Agent/Tools/Generic.pm
+@@ -286,7 +286,7 @@ sub _loadPCIDatabase {
      my (%params) = @_;
  
      ($PCIVendors, $PCIClasses) = _loadDatabase(
