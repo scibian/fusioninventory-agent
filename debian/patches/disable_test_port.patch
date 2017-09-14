@@ -1,0 +1,102 @@
+Index: FusionInventory-Agent-2.3.18/t/agent/http/server.t
+===================================================================
+--- FusionInventory-Agent-2.3.18.orig/t/agent/http/server.t
++++ FusionInventory-Agent-2.3.18/t/agent/http/server.t
+@@ -18,7 +18,7 @@ use FusionInventory::Agent::HTTP::Server
+ use FusionInventory::Agent::Logger;
+ use FusionInventory::Test::Utils;
+ 
+-plan tests => 12;
++plan tests => 9;
+ 
+ my $logger = FusionInventory::Agent::Logger->new(
+     backends => [ 'Test' ]
+@@ -49,9 +49,6 @@ if (my $pid = fork()) {
+     exit $client->get('http://127.0.0.1:62354')->is_success();
+ }
+ 
+-# find an available port
+-my $port = first { test_port($_) } 8080 .. 8090;
+-
+ lives_ok {
+     $server = FusionInventory::Agent::HTTP::Server->new(
+         agent     => FusionInventory::Test::Agent->new(),
+@@ -90,36 +87,3 @@ ok (
+     'do not trust unknown host 1.2.3.4'
+ );
+ 
+-# find an available port
+-$port = first { test_port($_) } 8080 .. 8090;
+-
+-lives_ok {
+-    $server = FusionInventory::Agent::HTTP::Server->new(
+-        agent     => FusionInventory::Test::Agent->new(),
+-        logger    => $logger,
+-        port      => $port,
+-        htmldir   => 'share/html',
+-    );
+-} 'instanciation with specific port: ok';
+-$server->init();
+-
+-if (my $pid = fork()) {
+-    $server->handleRequests();
+-    waitpid($pid, 0);
+-    ok($CHILD_ERROR >> 8, 'server listening on specific port');
+-} else {
+-    my $client = LWP::UserAgent->new(timeout => 2);
+-    exit $client->get("http://127.0.0.1:$port")->is_success();
+-}
+-
+-if (my $pid = fork()) {
+-    $server->handleRequests();
+-    waitpid($pid, 0);
+-    ok(
+-        $CHILD_ERROR >> 8,
+-        'server still listening on specific port after ALARM signal in child');
+-} else {
+-    alarm 3;
+-    my $client = LWP::UserAgent->new(timeout => 2);
+-    exit $client->get("http://127.0.0.1:$port")->is_success();
+-}
+Index: FusionInventory-Agent-2.3.18/t/agent/http/client/fusion/response.t
+===================================================================
+--- FusionInventory-Agent-2.3.18.orig/t/agent/http/client/fusion/response.t
++++ FusionInventory-Agent-2.3.18/t/agent/http/client/fusion/response.t
+@@ -19,14 +19,8 @@ use FusionInventory::Test::Utils;
+ 
+ unsetProxyEnvVar();
+ 
+-# find an available port
+-my $port = first { test_port($_) } 8080 .. 8090;
+-
+-if (!$port) {
+-    plan skip_all => 'no available port';
+-} else {
+-    plan tests => 6;
+-}
++my $port = 0;
++plan skip_all => 'no available port';
+ 
+ my $logger = FusionInventory::Agent::Logger->new(
+     backends => [ 'Test' ]
+Index: FusionInventory-Agent-2.3.18/t/agent/http/client/ocs/response.t
+===================================================================
+--- FusionInventory-Agent-2.3.18.orig/t/agent/http/client/ocs/response.t
++++ FusionInventory-Agent-2.3.18/t/agent/http/client/ocs/response.t
+@@ -19,14 +19,8 @@ use FusionInventory::Test::Utils;
+ 
+ unsetProxyEnvVar();
+ 
+-# find an available port
+-my $port = first { test_port($_) } 8080 .. 8090;
+-
+-if (!$port) {
+-    plan skip_all => 'no available port';
+-} else {
+-    plan tests => 7;
+-}
++my $port = 0;
++plan skip_all => 'no available port';
+ 
+ my $logger = FusionInventory::Agent::Logger->new(
+     backends => [ 'Test' ]
