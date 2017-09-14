@@ -1,3 +1,14 @@
+fusioninventory-agent (1:2.3.20-1~bpo9sci9u1) scibian9; urgency=medium
+
+  * New upstream release
+    - Add libdata-structure-util-perl dependency
+    - Refresh pciutils-pciids patch
+    - Fix README filename
+  * Add disable_test_port.patch to disable some tests for building
+    inside a chroot
+
+ -- Scibian Packaging Team <packaging@scibian.org>  Thu, 14 Sep 2017 11:42:11 +0200
+
 fusioninventory-agent (1:2.3.16-1) unstable; urgency=low
 
   * New upstream release
