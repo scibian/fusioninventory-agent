@@ -1,0 +1,244 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use lib './lib';
+use setup;
+
+use English qw(-no_match_vars);
+use Getopt::Long;
+use Pod::Usage;
+
+use FusionInventory::Agent::Task::NetDiscovery;
+use FusionInventory::Agent::Logger;
+use FusionInventory::Agent::Version;
+
+my $options = {
+    debug   => 0,
+    threads => 1
+};
+
+GetOptions(
+    $options,
+    'first=s',
+    'last=s',
+    'community=s@',
+    'credentials=s@',
+    'entity=s',
+    'threads=i',
+    'timeout=i',
+    'control',
+    'debug+',
+    'help',
+    'version'
+) or pod2usage(-verbose => 0);
+
+if ($options->{version}) {
+    my $PROVIDER = $FusionInventory::Agent::Version::PROVIDER;
+    map { print $_."\n" }
+        "NetDiscovery task $FusionInventory::Agent::Task::NetDiscovery::VERSION",
+        "based on $PROVIDER Agent v$FusionInventory::Agent::Version::VERSION",
+        @{$FusionInventory::Agent::Version::COMMENTS}
+        ;
+    exit 0;
+}
+pod2usage(-verbose => 0, -exitval => 0) if $options->{help};
+
+pod2usage(
+    -message => "no first address, aborting\n", -verbose => 0
+) unless $options->{first};
+pod2usage(
+    -message => "no last address, aborting\n", -verbose => 0
+) unless $options->{last};
+
+my $verbosity =
+    $options->{debug} == 0 ? LOG_INFO   :
+    $options->{debug} == 1 ? LOG_DEBUG  :
+    $options->{debug} == 2 ? LOG_DEBUG2 :
+                             LOG_DEBUG2 ;
+
+my $discovery = FusionInventory::Agent::Task::NetDiscovery->new(
+    %setup,
+    target => FusionInventory::Agent::Task::NetInventory::Target->new(),
+    logger => FusionInventory::Agent::Logger->new(verbosity => $verbosity)
+);
+
+my $credentials_id = 1;
+my @credentials;
+if ($options->{community}) {
+    foreach my $community (@{$options->{community}}) {
+        push @credentials,
+            { ID => $credentials_id++, VERSION => 1, COMMUNITY => $community };
+    }
+} elsif ($options->{credential}) {
+    foreach my $specification (@{$options->{credentials}}) {
+        my $credential = { ID => $credentials_id++ };
+        foreach my $parameter (split(',', $specification)) {
+            my ($key, $value) = split(':', $parameter);
+            $credential->{uc($key)} = $value;
+        }
+        push @credentials, $credential;
+    }
+} else {
+    push @credentials, {
+        ID => $credentials_id++, VERSION => 1, COMMUNITY => 'public'
+    };
+}
+
+$discovery->{jobs} = [
+    {
+        params => {
+            PID               => 1,
+            THREADS_DISCOVERY => $options->{threads},
+            TIMEOUT           => $options->{timeout},
+        },
+        ranges => [
+            {
+                ID      => 1,
+                IPSTART => $options->{first},
+                IPEND   => $options->{last},
+            }
+        ],
+        credentials => \@credentials
+    }
+];
+if (defined($options->{entity})) {
+    $discovery->{options}->{RANGEIP}->[0]->{ENTITY} = $options->{entity};
+}
+$discovery->{client} =
+    FusionInventory::Agent::Task::NetInventory::Client->new(
+        control => $options->{control}
+    );
+$discovery->{deviceid} = 'foo';
+
+$discovery->run();
+
+package FusionInventory::Agent::Task::NetInventory::Client;
+
+sub new {
+    my ($class, %params) = @_;
+
+    return bless {
+        control => $params{control}
+    }, $class;
+}
+
+sub send {
+    my ($self, %params) = @_;
+
+    # don't display control message by default
+    return unless $self->{control}
+        or $params{message}->{h}->{CONTENT}->{DEVICE};
+
+    print $params{message}->getContent();
+}
+
+package FusionInventory::Agent::Task::NetInventory::Target;
+
+sub new {
+    my ($class, %params) = @_;
+
+    return bless {}, $class;
+}
+
+sub getUrl {
+    my ($self, %params) = @_;
+
+    ## no critic (ExplicitReturnUndef)
+    return undef;
+}
+
+__END__
+
+=head1 NAME
+
+fusioninventory-netdiscovery - Standalone network discovery
+
+=head1 SYNOPSIS
+
+fusioninventory-netdiscovery [options] --first <address> --last <address>
+
+  Options:
+    --first <ADDRESS>      IP range first address
+    --last <ADDRESS>       IP range last address
+    --community <STRING>   SNMP community string (public)
+    --credentials <STRING> SNMP credentials (version:1,community:public)
+    --timeout <TIME        SNMP timeout, in seconds (1)
+    --entity <ENTITY>      GLPI entity
+    --threads <COUNT>      number of discovery threads (1)
+    --control              output control messages
+    --debug                debug output
+    -h --help              print this message and exit
+    --version              print the task version and exit
+
+=head1 DESCRIPTION
+
+F<fusioninventory-netdiscovery> allows to run a network discovery task without a
+GLPI server.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--first> I<ADDRESS>
+
+Set the first IP address of the network range to scan.
+
+=item B<--last> I<ADDRESS>
+
+Set the last IP address of the network range to scan.
+
+=item B<--community> I<STRING>
+
+Use given string as SNMP community (assume SNMPv1).
+
+=item B<--credentials> I<STRING>
+
+Use given string as SNMP credentials specification. This specification is a
+comma-separated list of key:value authentication parameters, such as:
+
+=over
+
+=item * version:2c,community:public
+
+=item * version:3,username:admin,authprotocol:sha,authpassword:s3cr3t
+
+=item * etc.
+
+=back
+
+=item B<--timeout> I<TIME>
+
+Set SNMP timeout, in seconds.
+
+=item B<--entity> I<ENTITY>
+
+Set GLPI entity.
+
+=item B<--threads> I<COUNT>
+
+Use given number of inventory threads.
+
+=item B<--control>
+
+Output server-agent control messages, in addition to inventory result itself.
+
+=item B<--debug>
+
+Turn the debug mode on. Multiple usage allowed, for additional verbosity.
+
+=back
+
+=head1 EXAMPLES
+
+Run a discovery against a network range, using SNMP version 1:
+
+    $> fusioninventory-netdiscovery --first 192.168.0.1 --last 192.168.0.254
+    --community public
+
+Run a discovery against a network range, using multiple SNMP credentials:
+
+    $> fusioninventory-netdiscovery --first 192.168.0.1 --last 192.168.0.254
+    --credentials version:2c,community:public
+    --credentials version:3,username:admin,authprotocol:sha,authpassword:s3cr3t
